@@ -24,7 +24,27 @@ html, body {
 
 body {
   margin: 0;
-  min-height: 100dvh;
+  /* `svh` = the *smallest* viewport, stable as the iOS URL bar collapses,
+     so the layout never overflows behind the home indicator. */
+  min-height: 100svh;
+  min-height: 100dvh; /* progressive enhancement for browsers without svh */
+  /* Keep the painted background continuous through the safe areas
+     (notch / Dynamic Island / home indicator). */
+  background-color: #07061a;
+}
+
+/* Status-bar overlay: paints the area behind the iOS notch / Dynamic Island
+   so the system status icons sit on a deliberate dark surface instead of
+   bleeding into the app content. */
+.safe-area-top {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: env(safe-area-inset-top, 0px);
+  background: rgba(7, 6, 26, 0.92);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  z-index: 40;
+  pointer-events: none;
 }
 
 button {

@@ -26,6 +26,8 @@ const { title = "Baby Sleep Tracker" } = Astro.props;
     <title>{title}</title>
   </head>
   <body class="overflow-hidden">
+    <!-- Status-bar backdrop: paints over the iOS notch / Dynamic Island area -->
+    <div class="safe-area-top" aria-hidden="true"></div>
     <slot />
     <script>
       import { registerSW } from "virtual:pwa-register";
