@@ -1,0 +1,641 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { icon } from "../lib/icons";
+---
+<Layout title="Baby Sleep Tracker">
+  <main class="relative h-[100dvh] flex flex-col select-none">
+    <!-- Decorative starfield -->
+    <div class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+      <span class="twinkle absolute text-star/70" style="top:8%;left:12%"><Fragment set:html={icon("star", "w-3 h-3")} /></span>
+      <span class="twinkle-2 absolute text-star/60" style="top:14%;left:78%"><Fragment set:html={icon("star", "w-2.5 h-2.5")} /></span>
+      <span class="twinkle-3 absolute text-mist/60" style="top:22%;left:35%"><Fragment set:html={icon("sparkles", "w-3 h-3")} /></span>
+      <span class="twinkle absolute text-star/50" style="top:6%;left:55%"><Fragment set:html={icon("star", "w-2 h-2")} /></span>
+      <span class="twinkle-2 absolute text-mist/40" style="top:30%;left:88%"><Fragment set:html={icon("sparkles", "w-2.5 h-2.5")} /></span>
+      <span class="twinkle-3 absolute text-star/60" style="top:42%;left:8%"><Fragment set:html={icon("star", "w-3 h-3")} /></span>
+      <span class="twinkle absolute text-mist/30" style="top:48%;left:65%"><Fragment set:html={icon("sparkles", "w-2 h-2")} /></span>
+      <span class="twinkle-2 absolute text-star/40" style="top:55%;left:22%"><Fragment set:html={icon("star", "w-2.5 h-2.5")} /></span>
+      <span class="float absolute text-mist/20" style="top:3%;right:5%"><Fragment set:html={icon("moon", "w-12 h-12")} /></span>
+    </div>
+
+    <!-- Header -->
+    <header class="relative px-5 pt-5 pb-2 flex items-center justify-between z-10">
+      <button id="title-btn" type="button" command="show-modal" commandfor="name-dialog"
+        class="flex items-center gap-2 text-left active:scale-[0.98] transition-transform">
+        <span class="float text-moon"><Fragment set:html={icon("moon", "w-6 h-6")} /></span>
+        <h1 data-title class="text-lg font-semibold tracking-wide text-cloud">Baby Sleep</h1>
+      </button>
+      <div id="now-status" class="text-xs text-cloud px-2.5 py-1 rounded-full bg-night-700/40 border border-night-600/40 flex items-center gap-1.5">
+        <span data-status-icon class="text-moon"><Fragment set:html={icon("sun", "w-3.5 h-3.5")} /></span>
+        <span data-status>awake</span>
+      </div>
+    </header>
+
+    <!-- Hint -->
+    <div class="relative px-5 z-10">
+      <p class="text-[11px] text-mist/70 text-center inline-flex items-center gap-1 w-full justify-center">
+        <span class="inline-flex"><Fragment set:html={icon("chevronLeft", "w-3 h-3")} /></span>
+        swipe to see other days
+        <span class="inline-flex"><Fragment set:html={icon("chevronRight", "w-3 h-3")} /></span>
+      </p>
+    </div>
+
+    <!-- Day swiper -->
+    <section class="relative z-10 mt-1">
+      <div id="day-swiper" class="day-swiper no-scrollbar flex overflow-x-auto px-5 gap-4 py-2 snap-x"></div>
+      <div id="day-dots" class="flex justify-center gap-1.5 mt-1"></div>
+    </section>
+
+    <!-- History list -->
+    <section class="relative flex-1 overflow-hidden mt-3 z-10 flex flex-col min-h-0">
+      <div class="px-5 mb-2 flex items-center justify-between shrink-0">
+        <h2 class="text-sm font-semibold text-cloud flex items-center gap-1.5">
+          <span class="text-star"><Fragment set:html={icon("sparkles", "w-4 h-4")} /></span> History
+        </h2>
+        <button id="clear-btn" type="button"
+          command="show-modal" commandfor="confirm-dialog" data-action="delete-all"
+          class="text-[10px] uppercase tracking-wider text-mist/80 active:text-cloud px-2 py-1 inline-flex items-center gap-1">
+          <span class="text-mist/80"><Fragment set:html={icon("xMark", "w-3 h-3")} /></span> clear
+        </button>
+      </div>
+      <div id="history-list" class="px-5 pb-44 flex-1 overflow-y-auto no-scrollbar"></div>
+      <div class="absolute bottom-0 inset-x-0 h-44 bg-gradient-to-t from-night-950 via-night-950/85 to-transparent pointer-events-none"></div>
+    </section>
+
+    <!-- Sticky bottom button -->
+    <div class="fixed bottom-0 inset-x-0 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 z-20">
+      <button id="track-btn" data-state="idle"
+        class="relative w-full py-5 rounded-3xl text-lg font-semibold transition-all
+               bg-gradient-to-br from-star to-moon text-night-950 shadow-[0_8px_30px_rgba(255,209,102,0.35)]
+               active:scale-[0.98]">
+        <span class="flex items-center justify-center gap-2.5">
+          <span data-icon class="inline-flex"><Fragment set:html={icon("moon", "w-6 h-6")} /></span>
+          <span data-label>Start sleep tracking</span>
+        </span>
+      </button>
+      <p data-elapsed class="text-center text-[12px] text-mist/85 mt-2 h-3 font-medium tabular-nums"></p>
+    </div>
+
+    <!-- Child name dialog (native <dialog> + HTML invoker commands API) -->
+    <dialog id="name-dialog"
+      class="w-[calc(100vw-3rem)] max-w-sm rounded-3xl bg-night-800/95 border border-night-600/60 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.6)] relative overflow-hidden text-cloud">
+      <div class="pointer-events-none absolute inset-0 opacity-60" aria-hidden="true">
+        <span class="twinkle absolute text-star/70" style="top:14%;left:10%"><Fragment set:html={icon("star", "w-2.5 h-2.5")} /></span>
+        <span class="twinkle-2 absolute text-mist/60" style="top:8%;right:12%"><Fragment set:html={icon("sparkles", "w-3 h-3")} /></span>
+        <span class="twinkle-3 absolute text-star/60" style="top:80%;right:8%"><Fragment set:html={icon("star", "w-2 h-2")} /></span>
+      </div>
+      <div class="relative flex flex-col items-center text-center">
+        <span class="float text-moon mb-2"><Fragment set:html={icon("moon", "w-12 h-12")} /></span>
+        <h2 data-modal-title class="text-xl font-semibold text-cloud">Welcome!</h2>
+        <p data-modal-sub class="text-sm text-mist/85 mt-1">What's your little one's name?</p>
+      </div>
+      <form data-name-form class="relative mt-5 space-y-3">
+        <input data-name-input type="text" required maxlength="32" autocomplete="given-name"
+          placeholder="Baby's name"
+          class="w-full px-4 py-3 rounded-2xl bg-night-900/80 border border-night-700/60 text-cloud placeholder:text-mist/50 focus:outline-none focus:border-star/60 focus:bg-night-900 text-base text-center" />
+        <button type="submit"
+          class="w-full py-3 rounded-2xl bg-gradient-to-br from-star to-moon text-night-950 font-semibold text-base active:scale-[0.98] inline-flex items-center justify-center gap-2">
+          <span class="inline-flex"><Fragment set:html={icon("moon", "w-5 h-5")} /></span>
+          <span data-modal-cta>Start tracking</span>
+        </button>
+        <button data-name-cancel type="button" command="close" commandfor="name-dialog"
+          class="w-full py-2 text-mist/85 text-xs hidden">cancel</button>
+      </form>
+    </dialog>
+
+    <!-- Confirm dialog (also native <dialog>; result delivered via form method="dialog") -->
+    <dialog id="confirm-dialog"
+      class="w-[calc(100vw-3rem)] max-w-sm rounded-3xl bg-night-800/95 border border-night-600/60 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.6)] relative overflow-hidden text-cloud">
+      <div class="relative flex flex-col items-center text-center">
+        <span class="text-red-300 mb-2"><Fragment set:html={icon("trash", "w-10 h-10")} /></span>
+        <h2 data-confirm-title class="text-lg font-semibold text-cloud">Delete sleep?</h2>
+        <p data-confirm-msg class="text-sm text-mist/85 mt-1">This entry will be removed.</p>
+      </div>
+      <form method="dialog" class="relative grid grid-cols-2 gap-3 mt-5">
+        <button type="submit" value="cancel"
+          class="py-3 rounded-2xl bg-night-700/70 border border-night-600/60 text-cloud font-semibold active:scale-[0.98]">
+          Cancel
+        </button>
+        <button type="submit" value="confirm" data-confirm-cta
+          class="py-3 rounded-2xl bg-gradient-to-br from-red-400 to-red-500 text-night-950 font-semibold active:scale-[0.98] inline-flex items-center justify-center gap-1.5">
+          <span class="inline-flex"><Fragment set:html={icon("trash", "w-4 h-4")} /></span>
+          <span data-confirm-cta-label>Delete</span>
+        </button>
+      </form>
+    </dialog>
+  </main>
+
+  <script>
+    import { Chart, registerables, type ChartConfiguration } from "chart.js";
+    import { icon } from "../lib/icons";
+    Chart.register(...registerables);
+
+    type Session = { id: string; start: number; end: number | null };
+
+    const STORAGE_KEY = "baby-sleep:sessions";
+    const NAME_KEY = "baby-sleep:name";
+    const DAYS_TO_SHOW = 14;
+    const ONE_DAY = 86_400_000;
+
+    // ---------- storage ----------
+    function loadSessions(): Session[] {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw) as Session[];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    function saveSessions(list: Session[]) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+    }
+    function loadName(): string {
+      return (localStorage.getItem(NAME_KEY) ?? "").trim();
+    }
+    function saveName(name: string) {
+      localStorage.setItem(NAME_KEY, name);
+    }
+
+    // ---------- helpers ----------
+    function startOfDay(ts: number): number {
+      const d = new Date(ts);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    }
+    function fmtTime(ts: number): string {
+      return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+    function fmtDateLabel(d: Date): string {
+      const today = startOfDay(Date.now());
+      const t = startOfDay(d.getTime());
+      const diff = Math.round((today - t) / ONE_DAY);
+      if (diff === 0) return "Today";
+      if (diff === 1) return "Yesterday";
+      return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+    }
+    function fmtDur(ms: number): string {
+      if (ms < 0) ms = 0;
+      const totalMin = Math.floor(ms / 60000);
+      const h = Math.floor(totalMin / 60);
+      const m = totalMin % 60;
+      if (h <= 0) return `${m}m`;
+      return `${h}h ${m}m`;
+    }
+    function fmtDurLong(ms: number): string {
+      const sec = Math.floor(ms / 1000);
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = sec % 60;
+      const pad = (n: number) => String(n).padStart(2, "0");
+      return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+    }
+    function uid(): string {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    }
+
+    // Sessions can span midnight. For per-day stats, clip to the day window.
+    type ClippedItem = { s: Session; clippedStart: number; clippedEnd: number; duration: number };
+    function sessionsForDay(sessions: Session[], dayStart: number): ClippedItem[] {
+      const dayEnd = dayStart + ONE_DAY;
+      const out: ClippedItem[] = [];
+      for (const s of sessions) {
+        const end = s.end ?? Date.now();
+        if (end <= dayStart || s.start >= dayEnd) continue;
+        const cs = Math.max(s.start, dayStart);
+        const ce = Math.min(end, dayEnd);
+        out.push({ s, clippedStart: cs, clippedEnd: ce, duration: ce - cs });
+      }
+      out.sort((a, b) => a.clippedStart - b.clippedStart);
+      return out;
+    }
+
+    // ---------- DOM refs ----------
+    const swiperEl = document.getElementById("day-swiper") as HTMLDivElement;
+    const dotsEl = document.getElementById("day-dots") as HTMLDivElement;
+    const historyEl = document.getElementById("history-list") as HTMLDivElement;
+    const trackBtn = document.getElementById("track-btn") as HTMLButtonElement;
+    const trackLabel = trackBtn.querySelector("[data-label]") as HTMLSpanElement;
+    const trackIconWrap = trackBtn.querySelector("[data-icon]") as HTMLSpanElement;
+    const elapsedEl = trackBtn.parentElement!.querySelector("[data-elapsed]") as HTMLParagraphElement;
+    const statusEl = document.querySelector("[data-status]") as HTMLSpanElement;
+    const statusIconWrap = document.querySelector("[data-status-icon]") as HTMLSpanElement;
+    const nowStatus = document.getElementById("now-status") as HTMLDivElement;
+    const titleEl = document.querySelector("[data-title]") as HTMLHeadingElement;
+    const nameDialog = document.getElementById("name-dialog") as HTMLDialogElement;
+    const nameForm = document.querySelector("[data-name-form]") as HTMLFormElement;
+    const nameInput = document.querySelector("[data-name-input]") as HTMLInputElement;
+    const nameCancel = document.querySelector("[data-name-cancel]") as HTMLButtonElement;
+    const modalTitle = document.querySelector("[data-modal-title]") as HTMLHeadingElement;
+    const modalSub = document.querySelector("[data-modal-sub]") as HTMLParagraphElement;
+    const modalCta = document.querySelector("[data-modal-cta]") as HTMLSpanElement;
+
+    // ---------- state ----------
+    let sessions: Session[] = loadSessions();
+    const charts: Map<string, Chart> = new Map();
+    let elapsedTimer: number | null = null;
+
+    function activeSession(): Session | null {
+      return sessions.find((s) => s.end === null) ?? null;
+    }
+
+    // ---------- name ----------
+    function applyName(name: string) {
+      titleEl.textContent = name ? `${name}'s sleep` : "Baby Sleep";
+    }
+    function prepareNameDialog() {
+      const current = loadName();
+      const editing = current.length > 0;
+      nameInput.value = current;
+      modalTitle.textContent = editing ? "Edit name" : "Welcome!";
+      modalSub.textContent = editing ? "Update your little one's name." : "What's your little one's name?";
+      modalCta.textContent = editing ? "Save" : "Start tracking";
+      nameCancel.classList.toggle("hidden", !editing);
+    }
+
+    // The HTML invoker commands API fires a `command` event on the target.
+    // We use it to prep input+labels right before the dialog opens.
+    nameDialog.addEventListener("command", (e: Event) => {
+      // CommandEvent is not in lib.dom yet; cast to access `command`.
+      const ce = e as Event & { command?: string };
+      if (ce.command === "show-modal") prepareNameDialog();
+    });
+
+    nameForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const v = nameInput.value.trim();
+      if (!v) return;
+      saveName(v);
+      applyName(v);
+      nameDialog.close();
+    });
+
+    // Defensive: if invoker commands aren't supported (very old browsers),
+    // still open the dialog when the title is clicked.
+    document.getElementById("title-btn")?.addEventListener("click", () => {
+      if (!nameDialog.open) {
+        prepareNameDialog();
+        nameDialog.showModal();
+      }
+    });
+
+    // ---------- confirm dialog (delete one / clear all) ----------
+    const confirmDialog = document.getElementById("confirm-dialog") as HTMLDialogElement;
+    const confirmTitle = document.querySelector("[data-confirm-title]") as HTMLHeadingElement;
+    const confirmMsg = document.querySelector("[data-confirm-msg]") as HTMLParagraphElement;
+    const confirmCtaLabel = document.querySelector("[data-confirm-cta-label]") as HTMLSpanElement;
+
+    type PendingAction =
+      | { action: "delete-one"; id: string }
+      | { action: "delete-all" };
+    let pendingAction: PendingAction | null = null;
+
+    confirmDialog.addEventListener("command", (e: Event) => {
+      const ce = e as Event & { command?: string; source?: HTMLElement };
+      if (ce.command !== "show-modal") return;
+      const src = ce.source;
+      const action = src?.dataset.action;
+      if (action === "delete-one" && src?.dataset.id) {
+        pendingAction = { action: "delete-one", id: src.dataset.id };
+        const time = src.dataset.time ?? "";
+        confirmTitle.textContent = "Delete this sleep?";
+        confirmMsg.textContent = time
+          ? `Sleep starting at ${time} will be removed.`
+          : "This entry will be removed.";
+        confirmCtaLabel.textContent = "Delete";
+      } else if (action === "delete-all") {
+        if (sessions.filter((s) => s.end !== null).length === 0) {
+          // Nothing to clear — abort the open by closing right away.
+          requestAnimationFrame(() => confirmDialog.close("cancel"));
+          pendingAction = null;
+          return;
+        }
+        pendingAction = { action: "delete-all" };
+        confirmTitle.textContent = "Clear all history?";
+        confirmMsg.textContent = "All recorded sleeps will be deleted permanently.";
+        confirmCtaLabel.textContent = "Clear all";
+      } else {
+        pendingAction = null;
+      }
+    });
+
+    confirmDialog.addEventListener("close", () => {
+      const rv = confirmDialog.returnValue;
+      const action = pendingAction;
+      pendingAction = null;
+      if (rv !== "confirm" || !action) return;
+      if (action.action === "delete-one") {
+        sessions = sessions.filter((s) => s.id !== action.id);
+      } else {
+        sessions = sessions.filter((s) => s.end === null); // keep active session
+      }
+      saveSessions(sessions);
+      renderAll();
+    });
+
+    // ---------- rendering ----------
+    function buildDays(): number[] {
+      const today = startOfDay(Date.now());
+      const days: number[] = [];
+      for (let i = DAYS_TO_SHOW - 1; i >= 0; i--) days.push(today - i * ONE_DAY);
+      return days;
+    }
+
+    function renderDayCards() {
+      const days = buildDays();
+      swiperEl.innerHTML = "";
+      dotsEl.innerHTML = "";
+      charts.forEach((c) => c.destroy());
+      charts.clear();
+
+      for (const dayStart of days) {
+        const card = document.createElement("article");
+        card.className =
+          "shrink-0 w-[calc(100vw-2.5rem)] max-w-md mx-auto rounded-3xl bg-night-800/60 border border-night-700/60 p-4 backdrop-blur-sm";
+        card.dataset.day = String(dayStart);
+
+        const items = sessionsForDay(sessions, dayStart);
+        const totalMs = items.reduce((acc, x) => acc + x.duration, 0);
+        const count = items.length;
+        const dateLabel = fmtDateLabel(new Date(dayStart));
+
+        card.innerHTML = `
+          <header class="flex items-baseline justify-between mb-3">
+            <h3 class="text-base font-semibold text-cloud flex items-center gap-1.5">
+              <span class="text-moon inline-flex">${icon("moon", "w-4 h-4")}</span>${dateLabel}
+            </h3>
+            <span class="text-[11px] font-medium uppercase tracking-wider text-mist/80">${new Date(dayStart).toLocaleDateString([], { day: "2-digit", month: "short" })}</span>
+          </header>
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <div class="rounded-2xl bg-night-900/70 border border-night-700/40 p-3">
+              <div class="text-[11px] font-semibold uppercase tracking-wider text-mist/85 inline-flex items-center gap-1">
+                <span class="text-star inline-flex">${icon("star", "w-3 h-3")}</span> sleeps
+              </div>
+              <div class="text-2xl font-bold text-star tabular-nums leading-tight mt-0.5">${count}</div>
+            </div>
+            <div class="rounded-2xl bg-night-900/70 border border-night-700/40 p-3">
+              <div class="text-[11px] font-semibold uppercase tracking-wider text-mist/85 inline-flex items-center gap-1">
+                <span class="text-moon inline-flex">${icon("clock", "w-3 h-3")}</span> total
+              </div>
+              <div class="text-2xl font-bold text-moon tabular-nums leading-tight mt-0.5">${count ? fmtDur(totalMs) : "–"}</div>
+            </div>
+          </div>
+          <div class="relative h-32 rounded-2xl bg-night-900/40 border border-night-700/30 overflow-hidden">
+            <canvas data-chart></canvas>
+            ${count === 0 ? `<div class="absolute inset-0 flex items-center justify-center text-[12px] text-mist/75 gap-1">
+                <span class="text-mist/75 inline-flex">${icon("sparkles", "w-3.5 h-3.5")}</span>no sleeps recorded
+              </div>` : ""}
+          </div>
+        `;
+        swiperEl.appendChild(card);
+
+        const canvas = card.querySelector("[data-chart]") as HTMLCanvasElement;
+        if (count > 0) renderChart(canvas, items, dayStart);
+
+        const dot = document.createElement("span");
+        dot.className = "w-1.5 h-1.5 rounded-full bg-mist/30 transition-all";
+        dot.dataset.day = String(dayStart);
+        dotsEl.appendChild(dot);
+      }
+
+      requestAnimationFrame(() => {
+        const last = swiperEl.lastElementChild as HTMLElement | null;
+        if (last) {
+          // Center the latest day card, accounting for snap alignment.
+          const target = last.offsetLeft + last.clientWidth / 2 - swiperEl.clientWidth / 2;
+          swiperEl.scrollTo({ left: target, behavior: "auto" });
+        }
+        updateActiveDot();
+      });
+    }
+
+    function renderChart(canvas: HTMLCanvasElement, items: ClippedItem[], dayStart: number) {
+      const labels = items.map((it) => fmtTime(it.clippedStart));
+      const data = items.map((it) => Math.round(it.duration / 60000));
+      const cfg: ChartConfiguration<"bar"> = {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            data,
+            backgroundColor: "rgba(255, 209, 102, 0.85)",
+            borderRadius: 8,
+            borderSkipped: false,
+            maxBarThickness: 32,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          // Symmetric padding so the chart sits centered in its card.
+          // (Y-axis is hidden — the stat card already shows total time.)
+          layout: { padding: { top: 10, right: 12, bottom: 4, left: 12 } },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: "#161236",
+              titleColor: "#e5dffb",
+              bodyColor: "#f5e6a8",
+              borderColor: "#322970",
+              borderWidth: 1,
+              padding: 10,
+              displayColors: false,
+              titleFont: { size: 12, weight: "bold" },
+              bodyFont: { size: 12 },
+              callbacks: {
+                title: (ctx) => `Started ${ctx[0].label}`,
+                label: (ctx) => `${fmtDur((ctx.parsed.y as number) * 60000)}`,
+              },
+            },
+          },
+          scales: {
+            x: {
+              ticks: {
+                color: "rgba(229, 223, 251, 0.85)",
+                font: { size: 11, weight: 500 },
+                padding: 4,
+              },
+              grid: { display: false },
+              border: { display: false },
+            },
+            y: {
+              display: false,
+              beginAtZero: true,
+            },
+          },
+        },
+      };
+      const chart = new Chart(canvas, cfg);
+      charts.set(String(dayStart), chart);
+    }
+
+    function updateActiveDot() {
+      const cards = Array.from(swiperEl.children) as HTMLElement[];
+      if (!cards.length) return;
+      const center = swiperEl.scrollLeft + swiperEl.clientWidth / 2;
+      let activeIdx = 0;
+      let bestDist = Infinity;
+      cards.forEach((c, i) => {
+        const cx = c.offsetLeft + c.clientWidth / 2;
+        const d = Math.abs(cx - center);
+        if (d < bestDist) {
+          bestDist = d;
+          activeIdx = i;
+        }
+      });
+      Array.from(dotsEl.children).forEach((d, i) => {
+        const el = d as HTMLElement;
+        if (i === activeIdx) el.className = "w-4 h-1.5 rounded-full bg-star transition-all";
+        else el.className = "w-1.5 h-1.5 rounded-full bg-mist/30 transition-all";
+      });
+    }
+
+    function renderHistory() {
+      const finished = sessions.filter((s) => s.end !== null);
+      const byStartDay = new Map<number, Session[]>();
+      for (const s of finished) {
+        const k = startOfDay(s.start);
+        if (!byStartDay.has(k)) byStartDay.set(k, []);
+        byStartDay.get(k)!.push(s);
+      }
+      const sortedDays = Array.from(byStartDay.keys()).sort((a, b) => b - a);
+
+      if (sortedDays.length === 0) {
+        historyEl.innerHTML = `
+          <div class="text-center py-12 text-mist/85 text-sm">
+            <div class="flex justify-center mb-3 text-mist/70">${icon("sparkles", "w-10 h-10")}</div>
+            <p>No sleep recorded yet.</p>
+            <p class="text-xs mt-1 text-mist/70">Tap the button below when baby falls asleep.</p>
+          </div>`;
+        return;
+      }
+
+      const html: string[] = [];
+      for (const dayStart of sortedDays) {
+        const list = byStartDay.get(dayStart)!.slice().sort((a, b) => a.start - b.start);
+        const totalMs = list.reduce((acc, s) => acc + ((s.end ?? 0) - s.start), 0);
+        html.push(`
+          <div class="mb-4">
+            <div class="flex items-center justify-between mb-1.5">
+              <h3 class="text-sm font-semibold text-cloud flex items-center gap-1.5">
+                <span class="text-moon inline-flex">${icon("moon", "w-3.5 h-3.5")}</span>${fmtDateLabel(new Date(dayStart))}
+              </h3>
+              <span class="text-[11px] font-medium uppercase tracking-wider text-mist/85">${list.length} · ${fmtDur(totalMs)}</span>
+            </div>
+            <ul class="space-y-1.5">
+              ${list.map((s) => `
+                <li class="flex items-center gap-3 rounded-2xl bg-night-800/50 border border-night-700/40 px-3 py-2.5">
+                  <span class="text-star inline-flex shrink-0">${icon("star", "w-4 h-4")}</span>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm text-cloud tabular-nums font-medium flex items-center gap-1.5">
+                      ${fmtTime(s.start)}
+                      <span class="text-mist/70 inline-flex">${icon("arrowRight", "w-3 h-3")}</span>
+                      ${fmtTime(s.end!)}
+                    </div>
+                    <div class="text-[11px] text-mist/80">${new Date(s.start).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="text-sm font-semibold text-moon tabular-nums">${fmtDur((s.end ?? 0) - s.start)}</div>
+                    <button type="button"
+                      command="show-modal" commandfor="confirm-dialog"
+                      data-action="delete-one" data-id="${s.id}" data-time="${fmtTime(s.start)}"
+                      class="text-mist/70 active:text-red-300 mt-0.5 inline-flex"
+                      aria-label="delete sleep">${icon("trash", "w-3.5 h-3.5")}</button>
+                  </div>
+                </li>`).join("")}
+            </ul>
+          </div>
+        `);
+      }
+      historyEl.innerHTML = html.join("");
+    }
+
+    function renderTrackButton() {
+      const active = activeSession();
+      if (active) {
+        trackBtn.dataset.state = "tracking";
+        trackBtn.className =
+          "relative w-full py-5 rounded-3xl text-lg font-semibold transition-all bg-gradient-to-br from-night-700 to-night-600 text-cloud border border-mist/20 shadow-[0_8px_30px_rgba(50,41,112,0.55)] active:scale-[0.98] pulse-soft";
+        trackIconWrap.innerHTML = icon("stop", "w-6 h-6");
+        trackLabel.textContent = "End sleep tracking";
+        statusEl.textContent = "sleeping";
+        statusIconWrap.className = "text-star twinkle";
+        statusIconWrap.innerHTML = icon("moon", "w-3.5 h-3.5");
+        startElapsedTimer(active);
+      } else {
+        trackBtn.dataset.state = "idle";
+        trackBtn.className =
+          "relative w-full py-5 rounded-3xl text-lg font-semibold transition-all bg-gradient-to-br from-star to-moon text-night-950 shadow-[0_8px_30px_rgba(255,209,102,0.35)] active:scale-[0.98]";
+        trackIconWrap.innerHTML = icon("moon", "w-6 h-6");
+        trackLabel.textContent = "Start sleep tracking";
+        statusEl.textContent = "awake";
+        statusIconWrap.className = "text-moon";
+        statusIconWrap.innerHTML = icon("sun", "w-3.5 h-3.5");
+        stopElapsedTimer();
+        elapsedEl.textContent = "";
+      }
+      void nowStatus;
+    }
+
+    function startElapsedTimer(s: Session) {
+      stopElapsedTimer();
+      const tick = () => {
+        elapsedEl.textContent = `sleeping for ${fmtDurLong(Date.now() - s.start)}`;
+      };
+      tick();
+      elapsedTimer = window.setInterval(tick, 1000);
+    }
+    function stopElapsedTimer() {
+      if (elapsedTimer !== null) {
+        clearInterval(elapsedTimer);
+        elapsedTimer = null;
+      }
+    }
+
+    function renderAll() {
+      renderDayCards();
+      renderHistory();
+      renderTrackButton();
+    }
+
+    // ---------- actions ----------
+    trackBtn.addEventListener("click", () => {
+      const active = activeSession();
+      if (active) active.end = Date.now();
+      else sessions.push({ id: uid(), start: Date.now(), end: null });
+      saveSessions(sessions);
+      renderAll();
+    });
+
+    swiperEl.addEventListener("scroll", () => updateActiveDot(), { passive: true });
+
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) renderAll();
+    });
+
+    window.addEventListener("resize", () => {
+      requestAnimationFrame(() => updateActiveDot());
+    });
+
+    // Init: apply stored name (if any) and prompt on first run.
+    applyName(loadName());
+    if (!loadName()) {
+      prepareNameDialog();
+      nameDialog.showModal();
+    }
+
+    renderAll();
+
+    // Re-render today's chart while a session is in progress
+    setInterval(() => {
+      if (!activeSession()) return;
+      const todayKey = String(startOfDay(Date.now()));
+      const todayCard = swiperEl.querySelector(`[data-day="${todayKey}"]`) as HTMLElement | null;
+      if (!todayCard) return;
+      const items = sessionsForDay(sessions, Number(todayKey));
+      charts.get(todayKey)?.destroy();
+      const canvas = todayCard.querySelector("[data-chart]") as HTMLCanvasElement | null;
+      if (canvas && items.length) renderChart(canvas, items, Number(todayKey));
+    }, 60_000);
+  </script>
+</Layout>

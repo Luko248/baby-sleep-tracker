@@ -1,0 +1,46 @@
+---
+import "../styles/global.css";
+import { pwaInfo } from "virtual:pwa-info";
+
+interface Props {
+  title?: string;
+}
+const { title = "Baby Sleep Tracker" } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+    <meta name="theme-color" content="#07061a" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Baby Sleep" />
+    <link rel="icon" type="image/svg+xml" href={`${import.meta.env.BASE_URL}favicon.svg`} />
+    <link rel="apple-touch-icon" href={`${import.meta.env.BASE_URL}favicon.svg`} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    {pwaInfo && <Fragment set:html={pwaInfo.webManifest.linkTag} />}
+    <title>{title}</title>
+  </head>
+  <body class="overflow-hidden">
+    <slot />
+    <script>
+      import { registerSW } from "virtual:pwa-register";
+      // Auto-update on new deployment; handle silently — no nag prompts.
+      const updateSW = registerSW({
+        immediate: true,
+        onRegisteredSW(_swUrl, registration) {
+          if (!registration) return;
+          // Periodically check for an updated SW (every 60 minutes when online).
+          setInterval(() => {
+            if (navigator.onLine) registration.update().catch(() => {});
+          }, 60 * 60 * 1000);
+        },
+      });
+      void updateSW;
+    </script>
+  </body>
+</html>
