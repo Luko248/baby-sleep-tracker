@@ -2,7 +2,10 @@
 import Layout from "../layouts/Layout.astro";
 import { icon } from "../lib/icons";
 ---
-<Layout title="Baby Sleep Tracker">
+<Layout
+  title="Baby Sleep Tracker — One-tap baby sleep log, offline"
+  description="A tiny offline-first PWA to track your baby's sleep. One tap to start a nap, swipe to browse the last 14 days, with daily totals and a per-day chart. No account, no servers — everything lives on your phone."
+>
   <main class="relative h-[100svh] flex flex-col select-none pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
     <!-- Decorative starfield -->
     <div class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
