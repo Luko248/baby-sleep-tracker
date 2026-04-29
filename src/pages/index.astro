@@ -132,20 +132,34 @@ import { icon } from "../lib/icons";
     import { icon } from "../lib/icons";
     Chart.register(...registerables);
 
-    type Session = { id: string; start: number; end: number | null };
+    type Kind = "sleep" | "awake";
+    type Session = { id: string; kind: Kind; start: number; end: number | null };
 
     const STORAGE_KEY = "baby-sleep:sessions";
     const NAME_KEY = "baby-sleep:name";
     const DAYS_TO_SHOW = 14;
     const ONE_DAY = 86_400_000;
 
+    // Chart bar colors for the two kinds.
+    const SLEEP_FILL = "rgba(255, 209, 102, 0.88)";
+    const AWAKE_FILL = "rgba(167, 243, 208, 0.85)";
+
     // ---------- storage ----------
     function loadSessions(): Session[] {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return [];
-        const parsed = JSON.parse(raw) as Session[];
-        return Array.isArray(parsed) ? parsed : [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        // Migration: older entries had no `kind` — default to sleep.
+        return parsed
+          .filter((s) => s && typeof s.start === "number")
+          .map((s) => ({
+            id: String(s.id ?? uid()),
+            kind: s.kind === "awake" ? "awake" : "sleep",
+            start: Number(s.start),
+            end: s.end == null ? null : Number(s.end),
+          }));
       } catch {
         return [];
       }
@@ -241,6 +255,9 @@ import { icon } from "../lib/icons";
     function activeSession(): Session | null {
       return sessions.find((s) => s.end === null) ?? null;
     }
+    function activeOfKind(kind: Kind): Session | null {
+      return sessions.find((s) => s.end === null && s.kind === kind) ?? null;
+    }
 
     // ---------- name ----------
     function applyName(name: string) {
@@ -301,9 +318,10 @@ import { icon } from "../lib/icons";
       if (action === "delete-one" && src?.dataset.id) {
         pendingAction = { action: "delete-one", id: src.dataset.id };
         const time = src.dataset.time ?? "";
-        confirmTitle.textContent = "Delete this sleep?";
+        const kind = src.dataset.kind === "awake" ? "awake spell" : "sleep";
+        confirmTitle.textContent = `Delete this ${kind}?`;
         confirmMsg.textContent = time
-          ? `Sleep starting at ${time} will be removed.`
+          ? `The ${kind} starting at ${time} will be removed.`
           : "This entry will be removed.";
         confirmCtaLabel.textContent = "Delete";
       } else if (action === "delete-all") {
@@ -315,7 +333,7 @@ import { icon } from "../lib/icons";
         }
         pendingAction = { action: "delete-all" };
         confirmTitle.textContent = "Clear all history?";
-        confirmMsg.textContent = "All recorded sleeps will be deleted permanently.";
+        confirmMsg.textContent = "All recorded sleep and awake entries will be deleted permanently.";
         confirmCtaLabel.textContent = "Clear all";
       } else {
         pendingAction = null;
@@ -358,7 +376,12 @@ import { icon } from "../lib/icons";
         card.dataset.day = String(dayStart);
 
         const items = sessionsForDay(sessions, dayStart);
-        const totalMs = items.reduce((acc, x) => acc + x.duration, 0);
+        const sleepItems = items.filter((x) => x.s.kind === "sleep");
+        const awakeItems = items.filter((x) => x.s.kind === "awake");
+        const sleepMs = sleepItems.reduce((a, x) => a + x.duration, 0);
+        const awakeMs = awakeItems.reduce((a, x) => a + x.duration, 0);
+        const sleepCount = sleepItems.length;
+        const awakeCount = awakeItems.length;
         const count = items.length;
         const dateLabel = fmtDateLabel(new Date(dayStart));
 
@@ -372,21 +395,23 @@ import { icon } from "../lib/icons";
           <div class="grid grid-cols-2 gap-3 mb-3">
             <div class="rounded-2xl bg-night-900/70 border border-night-700/40 p-3">
               <div class="text-[11px] font-semibold uppercase tracking-wider text-mist/85 inline-flex items-center gap-1">
-                <span class="text-star inline-flex">${icon("star", "w-3 h-3")}</span> sleeps
+                <span class="text-star inline-flex">${icon("moon", "w-3 h-3")}</span> sleep
               </div>
-              <div class="text-2xl font-bold text-star tabular-nums leading-tight mt-0.5">${count}</div>
+              <div class="text-2xl font-bold text-star tabular-nums leading-tight mt-0.5">${sleepCount ? fmtDur(sleepMs) : "–"}</div>
+              <div class="text-[11px] text-mist/70 tabular-nums mt-0.5">${sleepCount} ${sleepCount === 1 ? "nap" : "naps"}</div>
             </div>
             <div class="rounded-2xl bg-night-900/70 border border-night-700/40 p-3">
               <div class="text-[11px] font-semibold uppercase tracking-wider text-mist/85 inline-flex items-center gap-1">
-                <span class="text-moon inline-flex">${icon("clock", "w-3 h-3")}</span> total
+                <span class="text-awake inline-flex">${icon("sun", "w-3 h-3")}</span> awake
               </div>
-              <div class="text-2xl font-bold text-moon tabular-nums leading-tight mt-0.5">${count ? fmtDur(totalMs) : "–"}</div>
+              <div class="text-2xl font-bold text-awake tabular-nums leading-tight mt-0.5">${awakeCount ? fmtDur(awakeMs) : "–"}</div>
+              <div class="text-[11px] text-mist/70 tabular-nums mt-0.5">${awakeCount} ${awakeCount === 1 ? "spell" : "spells"}</div>
             </div>
           </div>
           <div class="relative h-32 rounded-2xl bg-night-900/40 border border-night-700/30 overflow-hidden">
             <canvas data-chart></canvas>
             ${count === 0 ? `<div class="absolute inset-0 flex items-center justify-center text-[12px] text-mist/75 gap-1">
-                <span class="text-mist/75 inline-flex">${icon("sparkles", "w-3.5 h-3.5")}</span>no sleeps recorded
+                <span class="text-mist/75 inline-flex">${icon("sparkles", "w-3.5 h-3.5")}</span>nothing recorded yet
               </div>` : ""}
           </div>
         `;
@@ -415,13 +440,15 @@ import { icon } from "../lib/icons";
     function renderChart(canvas: HTMLCanvasElement, items: ClippedItem[], dayStart: number) {
       const labels = items.map((it) => fmtTime(it.clippedStart));
       const data = items.map((it) => Math.round(it.duration / 60000));
+      const colors = items.map((it) => (it.s.kind === "sleep" ? SLEEP_FILL : AWAKE_FILL));
       const cfg: ChartConfiguration<"bar"> = {
         type: "bar",
         data: {
           labels,
           datasets: [{
             data,
-            backgroundColor: "rgba(255, 209, 102, 0.85)",
+            backgroundColor: colors,
+            hoverBackgroundColor: colors,
             borderRadius: 8,
             borderSkipped: false,
             maxBarThickness: 32,
@@ -437,8 +464,8 @@ import { icon } from "../lib/icons";
             legend: { display: false },
             tooltip: {
               backgroundColor: "#161236",
-              titleColor: "#e5dffb",
-              bodyColor: "#f5e6a8",
+              titleColor: "#c7b8ff",
+              bodyColor: "#e5dffb",
               borderColor: "#322970",
               borderWidth: 1,
               padding: 10,
@@ -446,8 +473,16 @@ import { icon } from "../lib/icons";
               titleFont: { size: 12, weight: "bold" },
               bodyFont: { size: 12 },
               callbacks: {
-                title: (ctx) => `Started ${ctx[0].label}`,
-                label: (ctx) => `${fmtDur((ctx.parsed.y as number) * 60000)}`,
+                title: (ctx) => {
+                  const it = items[ctx[0].dataIndex];
+                  const verb = it?.s.kind === "sleep" ? "Slept from" : "Awake from";
+                  return `${verb} ${ctx[0].label}`;
+                },
+                label: (ctx) => {
+                  const it = items[ctx.dataIndex];
+                  const noun = it?.s.kind === "sleep" ? "Sleep" : "Awake";
+                  return `${noun} · ${fmtDur((ctx.parsed.y as number) * 60000)}`;
+                },
               },
             },
           },
@@ -507,8 +542,8 @@ import { icon } from "../lib/icons";
         historyEl.innerHTML = `
           <div class="text-center py-12 text-mist/85 text-sm">
             <div class="flex justify-center mb-3 text-mist/70">${icon("sparkles", "w-10 h-10")}</div>
-            <p>No sleep recorded yet.</p>
-            <p class="text-xs mt-1 text-mist/70">Tap the button below when baby falls asleep.</p>
+            <p>Nothing recorded yet.</p>
+            <p class="text-xs mt-1 text-mist/70">Tap the button below when baby falls asleep — awake time will track itself.</p>
           </div>`;
         return;
       }
@@ -516,36 +551,50 @@ import { icon } from "../lib/icons";
       const html: string[] = [];
       for (const dayStart of sortedDays) {
         const list = byStartDay.get(dayStart)!.slice().sort((a, b) => a.start - b.start);
-        const totalMs = list.reduce((acc, s) => acc + ((s.end ?? 0) - s.start), 0);
+        const sleepMs = list.filter((s) => s.kind === "sleep").reduce((a, s) => a + ((s.end ?? 0) - s.start), 0);
+        const awakeMs = list.filter((s) => s.kind === "awake").reduce((a, s) => a + ((s.end ?? 0) - s.start), 0);
         html.push(`
           <div class="mb-4">
-            <div class="flex items-center justify-between mb-1.5">
+            <div class="flex items-center justify-between mb-1.5 gap-2">
               <h3 class="text-sm font-semibold text-cloud flex items-center gap-1.5">
                 <span class="text-moon inline-flex">${icon("moon", "w-3.5 h-3.5")}</span>${fmtDateLabel(new Date(dayStart))}
               </h3>
-              <span class="text-[11px] font-medium uppercase tracking-wider text-mist/85">${list.length} · ${fmtDur(totalMs)}</span>
+              <span class="text-[11px] font-medium tabular-nums tracking-wide flex items-center gap-2">
+                <span class="text-star inline-flex items-center gap-1">${icon("moon", "w-3 h-3")}<span>${fmtDur(sleepMs)}</span></span>
+                <span class="text-awake inline-flex items-center gap-1">${icon("sun", "w-3 h-3")}<span>${fmtDur(awakeMs)}</span></span>
+              </span>
             </div>
             <ul class="space-y-1.5">
-              ${list.map((s) => `
+              ${list.map((s) => {
+                const isSleep = s.kind === "sleep";
+                const accent = isSleep ? "text-star" : "text-awake";
+                const kindLabel = isSleep ? "sleep" : "awake";
+                const kindIcon = icon(isSleep ? "moon" : "sun", "w-4 h-4");
+                return `
                 <li class="flex items-center gap-3 rounded-2xl bg-night-800/50 border border-night-700/40 px-3 py-2.5">
-                  <span class="text-star inline-flex shrink-0">${icon("star", "w-4 h-4")}</span>
+                  <span class="${accent} inline-flex shrink-0">${kindIcon}</span>
                   <div class="flex-1 min-w-0">
                     <div class="text-sm text-cloud tabular-nums font-medium flex items-center gap-1.5">
                       ${fmtTime(s.start)}
                       <span class="text-mist/70 inline-flex">${icon("arrowRight", "w-3 h-3")}</span>
                       ${fmtTime(s.end!)}
                     </div>
-                    <div class="text-[11px] text-mist/80">${new Date(s.start).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</div>
+                    <div class="text-[11px] text-mist/80 flex items-center gap-1.5">
+                      <span class="${accent} uppercase tracking-wider font-semibold text-[10px]">${kindLabel}</span>
+                      <span>·</span>
+                      <span>${new Date(s.start).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span>
+                    </div>
                   </div>
                   <div class="text-right">
-                    <div class="text-sm font-semibold text-moon tabular-nums">${fmtDur((s.end ?? 0) - s.start)}</div>
+                    <div class="text-sm font-semibold ${accent} tabular-nums">${fmtDur((s.end ?? 0) - s.start)}</div>
                     <button type="button"
                       command="show-modal" commandfor="confirm-dialog"
-                      data-action="delete-one" data-id="${s.id}" data-time="${fmtTime(s.start)}"
+                      data-action="delete-one" data-id="${s.id}" data-kind="${s.kind}" data-time="${fmtTime(s.start)}"
                       class="text-mist/70 active:text-red-300 mt-0.5 inline-flex"
-                      aria-label="delete sleep">${icon("trash", "w-3.5 h-3.5")}</button>
+                      aria-label="delete entry">${icon("trash", "w-3.5 h-3.5")}</button>
                   </div>
-                </li>`).join("")}
+                </li>`;
+              }).join("")}
             </ul>
           </div>
         `);
@@ -554,9 +603,11 @@ import { icon } from "../lib/icons";
     }
 
     function renderTrackButton() {
-      const active = activeSession();
-      if (active) {
-        trackBtn.dataset.state = "tracking";
+      const sleep = activeOfKind("sleep");
+      const awake = activeOfKind("awake");
+      if (sleep) {
+        // Sleep is in progress — button ends sleep (which auto-starts awake).
+        trackBtn.dataset.state = "sleeping";
         trackBtn.className =
           "relative w-full py-5 rounded-3xl text-lg font-semibold transition-all bg-gradient-to-br from-night-700 to-night-600 text-cloud border border-mist/20 shadow-[0_8px_30px_rgba(50,41,112,0.55)] active:scale-[0.98] pulse-soft";
         trackIconWrap.innerHTML = icon("stop", "w-6 h-6");
@@ -564,26 +615,34 @@ import { icon } from "../lib/icons";
         statusEl.textContent = "sleeping";
         statusIconWrap.className = "text-star twinkle";
         statusIconWrap.innerHTML = icon("moon", "w-3.5 h-3.5");
-        startElapsedTimer(active);
+        startElapsedTimer(sleep);
       } else {
-        trackBtn.dataset.state = "idle";
+        // Either awake is running, or nothing is — both behave the same way:
+        // tapping starts a sleep session (and ends awake if it's running).
+        trackBtn.dataset.state = awake ? "awake" : "idle";
         trackBtn.className =
           "relative w-full py-5 rounded-3xl text-lg font-semibold transition-all bg-gradient-to-br from-star to-moon text-night-950 shadow-[0_8px_30px_rgba(255,209,102,0.35)] active:scale-[0.98]";
         trackIconWrap.innerHTML = icon("moon", "w-6 h-6");
         trackLabel.textContent = "Start sleep tracking";
         statusEl.textContent = "awake";
-        statusIconWrap.className = "text-moon";
+        statusIconWrap.className = "text-awake";
         statusIconWrap.innerHTML = icon("sun", "w-3.5 h-3.5");
-        stopElapsedTimer();
-        elapsedEl.textContent = "";
+        if (awake) startElapsedTimer(awake);
+        else {
+          stopElapsedTimer();
+          elapsedEl.textContent = "";
+        }
       }
       void nowStatus;
     }
 
     function startElapsedTimer(s: Session) {
       stopElapsedTimer();
+      const verb = s.kind === "sleep" ? "sleeping" : "awake";
+      const colorClass = s.kind === "sleep" ? "text-star/95" : "text-awake/95";
+      elapsedEl.className = `text-center text-[12px] mt-2 h-3 font-medium tabular-nums ${colorClass}`;
       const tick = () => {
-        elapsedEl.textContent = `sleeping for ${fmtDurLong(Date.now() - s.start)}`;
+        elapsedEl.textContent = `${verb} for ${fmtDurLong(Date.now() - s.start)}`;
       };
       tick();
       elapsedTimer = window.setInterval(tick, 1000);
@@ -602,10 +661,23 @@ import { icon } from "../lib/icons";
     }
 
     // ---------- actions ----------
+    // State machine:
+    //   sleep active  → tap = end sleep, auto-start awake
+    //   awake active  → tap = end awake, start sleep
+    //   nothing active → tap = start sleep (first run / after clear all)
     trackBtn.addEventListener("click", () => {
-      const active = activeSession();
-      if (active) active.end = Date.now();
-      else sessions.push({ id: uid(), start: Date.now(), end: null });
+      const now = Date.now();
+      const sleep = activeOfKind("sleep");
+      const awake = activeOfKind("awake");
+      if (sleep) {
+        sleep.end = now;
+        sessions.push({ id: uid(), kind: "awake", start: now, end: null });
+      } else if (awake) {
+        awake.end = now;
+        sessions.push({ id: uid(), kind: "sleep", start: now, end: null });
+      } else {
+        sessions.push({ id: uid(), kind: "sleep", start: now, end: null });
+      }
       saveSessions(sessions);
       renderAll();
     });

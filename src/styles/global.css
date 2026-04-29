@@ -10,6 +10,10 @@
   --color-star: #ffd166;
   --color-mist: #c7b8ff;
   --color-cloud: #e5dffb;
+  /* Pastel green for awake periods — paired with the gold sleep palette. */
+  --color-awake: #a7f3d0;
+  --color-awake-soft: #d1fadf;
+  --color-awake-deep: #6ee7b7;
   --font-display: "Quicksand", "Nunito", system-ui, sans-serif;
 }
 

@@ -11,12 +11,15 @@ const {
   description = "A tiny offline-first PWA to track your baby's sleep. One tap to start a nap, swipe to browse the last 14 days, with daily totals and per-session charts. No account, no servers — everything stays on your phone.",
 } = Astro.props;
 
-const baseUrl = import.meta.env.BASE_URL;
-const siteUrl = Astro.site
-  ? new URL(baseUrl, Astro.site).toString().replace(/\/$/, "")
-  : baseUrl;
-const ogImage = `${baseUrl}favicon.svg`;
-const canonical = Astro.url ? new URL(Astro.url.pathname, Astro.site ?? Astro.url.origin).toString() : siteUrl;
+// Normalize base so it always ends in a slash — Astro's BASE_URL may or
+// may not, depending on the configured `base`.
+const rawBase = import.meta.env.BASE_URL;
+const baseUrl = rawBase.endsWith("/") ? rawBase : `${rawBase}/`;
+const asset = (path: string) => `${baseUrl}${path.replace(/^\//, "")}`;
+const ogImage = asset("favicon.svg");
+const canonical = Astro.url
+  ? new URL(Astro.url.pathname, Astro.site ?? Astro.url.origin).toString()
+  : (Astro.site ? new URL(baseUrl, Astro.site).toString() : baseUrl);
 ---
 <!doctype html>
 <html lang="en">
@@ -56,8 +59,8 @@ const canonical = Astro.url ? new URL(Astro.url.pathname, Astro.site ?? Astro.ur
     <meta name="application-name" content="Baby Sleep" />
     <meta name="format-detection" content="telephone=no" />
 
-    <link rel="icon" type="image/svg+xml" href={`${baseUrl}favicon.svg`} />
-    <link rel="apple-touch-icon" href={`${baseUrl}favicon.svg`} />
+    <link rel="icon" type="image/svg+xml" href={asset("favicon.svg")} />
+    <link rel="apple-touch-icon" href={asset("favicon.svg")} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet" />
